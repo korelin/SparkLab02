@@ -1,26 +1,19 @@
-//import scala.io.Source
-//import scala.util.Try
+import java.io.PrintWriter
+
 import org.apache.spark.SparkContext
 import org.apache.spark.ml.feature.{HashingTF, IDF, StopWordsRemover, Tokenizer}
 import org.apache.spark.ml.linalg._
 import org.apache.spark.sql.DataFrame
-//import org.apache.spark.mllib.linalg.distributed.{IndexedRow, IndexedRowMatrix, RowMatrix}
-import org.apache.spark.sql.{SparkSession}
+import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.functions._
-import io.circe.syntax._
-import io.circe.generic.auto._
-//import org.apache.spark.sql._
-//import org.apache.spark.rdd.RDD
 import org.apache.spark.SparkConf
-import org.apache.log4j.{Logger, Level}
-
-case class Histogram(hist_film: Seq[Int], hist_all: Seq[Int])
+import org.apache.log4j.{Level, Logger}
 
 object UdfUtils extends Serializable {
   def calcNorm(vectorA: SparseVector): Double = {
     var norm = 0.0
     for (i <-  vectorA.indices){ norm += vectorA(i)*vectorA(i) }
-    if (norm > 0 ) (math.sqrt(norm)) else (0)
+    math.sqrt(norm)
   }
   val calcNormDF = udf[Double,SparseVector](calcNorm)
 
@@ -49,6 +42,7 @@ object Analizer {
     val hashingTF = new HashingTF()
       .setInputCol("words")
       .setOutputCol("rawFeatures")
+      .setNumFeatures(10000)
     val featurizedData = hashingTF.transform(wordsData)
     val idf = new IDF()
       .setInputCol("rawFeatures")
@@ -65,8 +59,8 @@ object Analizer {
         .collect().map(r => r(0)).toList.head.toString
     val corpus = df.filter('lang === filmLang)
     val featuredCorpus = getFeatures(corpus)
-    val query = df.filter('id === id)
-    val featuredQuery = getFeatures(query)
+    def query = featuredCorpus.filter('id === id)//df.filter('id === id)
+    val featuredQuery = query//getFeatures(query)
       .withColumnRenamed("features", "features2")
       .withColumnRenamed("norm", "norm2")
       .drop("name")
@@ -79,20 +73,27 @@ object Analizer {
 }
 
 object Lab02 extends App{
-
-  Logger.getLogger("org").setLevel(Level.ERROR)
-  Logger.getLogger("akka").setLevel(Level.ERROR)
-  val conf = new SparkConf().setAppName("spark-test").setMaster("local[*]")
-  val sc = new SparkContext(conf)
-  implicit val spark = SparkSession.builder().config(sc.getConf).getOrCreate()
-  val df = spark.read.json("file.json")//.json("DO_record_per_line.json")//.json("file.json")
-  val ids = "49,47".split(",").map(r => r.toInt) //"23325,15072,24506,3879,1067,17019"
-  val results = ids.map(id => Map(id -> Analizer.lookUp(id, df)))
-  println(results.mkString(","))
-  //val f = Map(49 -> Analizer.lookUp(49, df))
-  //println(f.asJson)
-  spark.stop
+  def listToString(l:List[Any])={
+    "[\n    " + l.mkString(",\n    ") + "\n  ]"
+  }
+  def mapToString(m:Map[Int, List[Any]])={
+    val key = m.keys.head
+    "\n  \"" + key + "\" : " + listToString(m(key))
+  }
+  override def main(args: Array[String]): Unit = {
+      Logger.getLogger("org").setLevel(Level.ERROR)
+      Logger.getLogger("akka").setLevel(Level.ERROR)
+      val conf = new SparkConf().setAppName("spark-test").setMaster("local")
+      val sc = new SparkContext(conf)
+      implicit val spark = SparkSession.builder().config(sc.getConf).getOrCreate()
+      val df = spark.read.json("DO_record_per_line.json")//.json("DO_record_per_line.json")//.json("file.json")args(0)
+      val ids = args(0).split(",").map(r => r.toInt) //"23325,15072,24506,3879,1067,17019"args(1)
+      val results = ids.map(id => Map(id -> Analizer.lookUp(id, df)))
+      //results.foreach(println)
+      //println("{" + results.map(r => mapToString(r)).mkString(",") + "\n}")
+      new PrintWriter("lab02.json") { write("{" + results.map(r => mapToString(r)).mkString(",") + "\n}"); close() }
+      spark.stop
+    }
 }
 
 
-//  new PrintWriter("lab01.json") { write(hist.asJson.toString); close() }
