@@ -83,7 +83,7 @@ object Lab02 extends App{
   override def main(args: Array[String]): Unit = {
       Logger.getLogger("org").setLevel(Level.ERROR)
       Logger.getLogger("akka").setLevel(Level.ERROR)
-      val conf = new SparkConf().setAppName("spark-test").setMaster("local")
+      val conf = new SparkConf().setAppName("ivan.korelin-lab02").setMaster("local")
       val sc = new SparkContext(conf)
       implicit val spark = SparkSession.builder().config(sc.getConf).getOrCreate()
       val df = spark.read.json("DO_record_per_line.json")//.json("DO_record_per_line.json")//.json("file.json")args(0)
